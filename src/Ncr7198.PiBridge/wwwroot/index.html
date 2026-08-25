@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NCR 7198 Print Bridge</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div><span class="eyebrow">NCR 7198</span><h1>Receipt printer</h1></div>
+      <span id="health" class="status">Checking printer...</span>
+    </header>
+
+    <form id="receipt-form">
+      <section class="card editor-card">
+        <div class="section-heading">
+          <h2>Receipt</h2>
+          <div class="segmented" role="group" aria-label="Input mode">
+            <button type="button" data-mode="content" class="active">Content</button>
+            <button type="button" data-mode="lines">Lines</button>
+          </div>
+        </div>
+        <p id="mode-help" class="help">Content can be word-wrapped. Explicit line breaks are preserved.</p>
+        <textarea id="receipt-text" rows="14" spellcheck="false" maxlength="16384" required>MY STORE
+--------------------------------------------
+Widget                                $12.00
+
+TOTAL                                 $12.00</textarea>
+        <div class="editor-footer"><span id="column-rule">44 columns</span><span id="character-count">0 / 16,384</span></div>
+      </section>
+
+      <section class="card options-card">
+        <h2>Options</h2>
+        <div class="option-grid">
+          <label>Print ID <span>optional</span><input id="print-id" maxlength="128" placeholder="order-10042"></label>
+          <label>Copies <input id="copies" type="number" min="1" max="3" value="1" required></label>
+          <label>Feed before <span>lines</span><input id="pre-lines" type="number" min="0" max="10" value="0" required></label>
+          <label>Feed after <span>lines</span><input id="post-lines" type="number" min="0" max="10" value="4" required></label>
+          <label>Wrap<select id="wrap"><option value="none">None</option><option value="word">Word</option></select></label>
+        </div>
+        <div class="checks">
+          <label><input id="compressed" type="checkbox"> Compressed <span>(56 columns)</span></label>
+          <label><input id="cut" type="checkbox" checked> Cut after receipt</label>
+        </div>
+        <p id="cut-note" class="help hidden">Cut is required when printing multiple copies.</p>
+      </section>
+
+      <div id="message" class="message hidden" role="status"></div>
+      <div class="actions">
+        <button id="preview-button" class="secondary" type="button">Preview</button>
+        <button id="print-button" class="primary" type="submit">Print</button>
+      </div>
+    </form>
+
+    <section id="preview-card" class="card preview-card hidden">
+      <div class="section-heading"><h2>Preview</h2><span id="preview-width"></span></div>
+      <div id="preview" class="paper"></div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
