@@ -19,8 +19,9 @@
   const compressed = $('compressed');
   const message = $('message');
   const preferenceIds = ['pre-lines', 'post-lines', 'compressed', 'cut', 'copies', 'logo-position'];
-  const textLinesPerInch = 7.52;
+  const textLinesPerInch = 7.40;
   const printerDotsPerInch = 203;
+  const cutterAllowanceInches = 0.70;
   const drafts = {
     lines: text.value,
     content: 'Thanks for visiting Northstar Market. This Content mode sample is written as a paragraph so the bridge can automatically wrap it to the selected receipt width. Edit or replace this text, then preview the result before printing.'
@@ -158,11 +159,13 @@
 
   function estimatePaperInches(lines) {
     const printed = lines.filter(line => line !== '[CUT]');
+    const cuts = lines.filter(line => line === '[CUT]').length;
     const logoBands = printed.reduce((total, line) => {
       const match = /^\[LOGO: \d+x(\d+)\]$/.exec(line);
       return total + (match ? Math.ceil(Number(match[1]) / 24) : 0);
     }, 0);
-    return (printed.length - logoBands) / textLinesPerInch + logoBands * 24 / printerDotsPerInch;
+    return (printed.length - logoBands) / textLinesPerInch +
+      logoBands * 24 / printerDotsPerInch + cuts * cutterAllowanceInches;
   }
 
   async function writeClipboard(value) {

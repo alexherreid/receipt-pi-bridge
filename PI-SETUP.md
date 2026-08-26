@@ -153,6 +153,7 @@ A fully ready response includes:
 ```json
 {
   "service": "NCR 7198 Raspberry Pi Bridge",
+  "version": "2026.08.25-2",
   "transportMode": "Device",
   "transport": "/dev/ncr7198",
   "transportAvailable": true,
@@ -170,6 +171,8 @@ If using the separate local development web page, enter `http://receipt-pi.local
 
 Preview a receipt before selecting Print. The Pi may be online while `printerAvailable` is false; in that state the UI permits an attempted print, and the API returns a device error if the printer still cannot be opened.
 
+The 8-inch safety limit includes text and feed rows, logo raster height, all copies, and a physically calibrated cutter allowance. The reference receipt containing 41 uncompressed lines with no explicit pre/post feed measured 15.75 cm cut-to-cut: 1.75 cm before the first printed line and 14.00 cm for the printed rows. The calculation conservatively uses 0.70 inch per cut and 7.40 text lines per inch.
+
 ## 8. Firewall and network address
 
 The service listens on standard HTTP TCP port 80. If a firewall is already enabled on the Pi, allow the port only from the trusted LAN. Substitute the actual subnet before running this example:
@@ -180,6 +183,20 @@ sudo ufw status
 ```
 
 Prefer a DHCP reservation in the router for the Pi. The `.local` hostname normally works through mDNS, but a reservation also provides a predictable fallback IP address.
+
+To rename an existing Pi to the hostname used throughout this guide:
+
+```bash
+sudo hostnamectl set-hostname receipt-pi
+if grep -q '^127\.0\.1\.1' /etc/hosts; then
+    sudo sed -i 's/^127\.0\.1\.1.*/127.0.1.1\treceipt-pi/' /etc/hosts
+else
+    printf '127.0.1.1\treceipt-pi\n' | sudo tee -a /etc/hosts
+fi
+sudo reboot
+```
+
+After rebooting, verify `hostnamectl --static`, `ping receipt-pi.local`, and `curl http://receipt-pi.local/api/health`.
 
 ## 9. Update the installed bridge
 

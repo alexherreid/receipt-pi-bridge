@@ -195,15 +195,25 @@ public sealed class ReceiptRendererTests
     [Fact]
     public void PaperLimit_AllowsAtMostEightEstimatedInches()
     {
-        var withinLimit = string.Join('\n', Enumerable.Repeat("X", 56));
-        var overLimit = string.Join('\n', Enumerable.Repeat("X", 57));
+        var withinLimit = string.Join('\n', Enumerable.Repeat("X", 50));
+        var overLimit = string.Join('\n', Enumerable.Repeat("X", 51));
 
         _renderer.Render(new PrintRequest { Content = withinLimit });
         var exception = Assert.Throws<PrintValidationException>(() =>
             _renderer.Render(new PrintRequest { Content = overLimit }));
 
-        Assert.Contains("8.11 inches", exception.Message);
+        Assert.Contains("8.13 inches", exception.Message);
         Assert.Contains("maximum is 8 inches", exception.Message);
+    }
+
+    [Fact]
+    public void PaperEstimate_MatchesPhysicalFortyOneLineCalibrationReceipt()
+    {
+        var rows = 41;
+        var estimatedInches = rows / ReceiptRenderer.CalibratedTextLinesPerInch +
+            ReceiptRenderer.CalibratedCutterAllowanceInches;
+
+        Assert.InRange(estimatedInches * 2.54, 15.75, 15.90);
     }
 
     [Fact]

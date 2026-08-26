@@ -9,7 +9,8 @@ public sealed class ReceiptRenderer
     public const int MaxContentCharacters = 16 * 1024;
     public const int PrinterDotsPerInch = 203;
     public const int LogoRasterBandHeightDots = 24;
-    public const double DefaultTextLinesPerInch = 7.52;
+    public const double CalibratedTextLinesPerInch = 7.40;
+    public const double CalibratedCutterAllowanceInches = 0.70;
     public const double MaximumPaperLengthInches = 8;
     private readonly LogoRenderer _logoRenderer;
 
@@ -32,8 +33,9 @@ public sealed class ReceiptRenderer
         var effectiveCut = request.Cut || request.Copies > 1;
         var cutForced = !request.Cut && request.Copies > 1;
         var textRows = checked(request.PrePrintLines + renderedLines.Count + request.PostPrintLines);
-        var estimatedInchesPerCopy = textRows / DefaultTextLinesPerInch +
-            (logo?.RasterBands ?? 0) * LogoRasterBandHeightDots / (double)PrinterDotsPerInch;
+        var estimatedInchesPerCopy = textRows / CalibratedTextLinesPerInch +
+            (logo?.RasterBands ?? 0) * LogoRasterBandHeightDots / (double)PrinterDotsPerInch +
+            (effectiveCut ? CalibratedCutterAllowanceInches : 0);
         var estimatedInches = estimatedInchesPerCopy * request.Copies;
         if (estimatedInches > MaximumPaperLengthInches)
         {

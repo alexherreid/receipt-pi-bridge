@@ -65,7 +65,7 @@ To use the local web interface with a Pi, enter the Pi bridge origin, for exampl
 
 Print is enabled whenever a Device-mode Pi bridge is reachable, even when that Pi currently reports its printer unavailable. It remains disabled while the Pi is offline, health is unknown, or the selected target is the local development file transport. On desktop, opening either preview moves it into a second column; smaller screens retain the stacked layout.
 
-The editor opens in Lines mode with the literal receipt example. Content mode has its own paragraph example and word-wraps without enforcing a width in the editor; switching modes preserves each draft for the current page session. Lines mode preserves each entered row literally and enforces the selected 44- or 56-column printer width. Preview reports an approximate paper length using the printer's default 7.52 text lines per inch and 24-dot logo bands at 203 DPI, and **JSON Body POST Preview** validates then shows the exact request body that can be sent to `POST /api/print`. **Copy JSON** copies that validated body, including on ordinary LAN HTTP through a browser fallback. A failed validation clears and hides the corresponding prior preview.
+The editor opens in Lines mode with the literal receipt example. Content mode has its own paragraph example and word-wraps without enforcing a width in the editor; switching modes preserves each draft for the current page session. Lines mode preserves each entered row literally and enforces the selected 44- or 56-column printer width. Preview reports an approximate paper length using the physically calibrated 7.40 text lines per inch, a 0.70-inch cutter allowance, and 24-dot logo bands at 203 DPI. **JSON Body POST Preview** validates then shows the exact request body that can be sent to `POST /api/print`. **Copy JSON** copies that validated body, including on ordinary LAN HTTP through a browser fallback. A failed validation clears and hides the corresponding prior preview.
 
 Run the automated tests with:
 
@@ -149,7 +149,7 @@ Defaults:
 
 ### Preview response
 
-Preview returns only the rendered array. Empty strings represent feed lines and `[CUT]` represents a cut:
+Preview returns only the rendered array. Empty strings represent feed or reserved logo-height rows, `[LOGO: WIDTHxHEIGHT]` represents the centered monochrome logo, and `[CUT]` represents a cut:
 
 ```json
 [
@@ -198,9 +198,10 @@ See `examples/CSharpClient.cs` and `examples/test-from-powershell.ps1` for compl
 - `word` is available only with `content`. It wraps at spaces, preserves explicit newlines, normalizes spaces between words, and splits an unbroken word across lines when necessary.
 - Printable receipt characters are limited to ASCII `U+0020` through `U+007E`. Tabs, extended ASCII, emoji, smart punctuation, and other Unicode characters are rejected.
 - Input receipt content is limited to 16,384 characters.
-- Estimated physical output is limited to 8 inches. The calculation uses the printer's default 7.52 text lines per inch and 24-dot logo raster bands at 203 DPI, including explicit feeds and all copies.
+- Estimated physical output is limited to 8 inches. The calculation conservatively uses 7.40 text lines per inch, 24-dot logo raster bands at 203 DPI, and a 0.70-inch cutter-position allowance for every cut, including explicit feeds and all copies.
 - `printId` is optional, trimmed, case-sensitive, and limited to 128 characters.
 - `logo` is optional, limited to one Base64-encoded image, 8 MB after Base64 decoding, and 8,192 pixels on either source dimension.
+- The complete JSON request body is limited to 12 MB.
 - `logoPosition` must be `"top"` or `"bottom"`, even when no logo is supplied.
 - The fourth unique outstanding print request receives HTTP 429. A matching duplicate `printId` is resolved before queue capacity is checked.
 
@@ -270,7 +271,7 @@ readlink -f /dev/ncr7198
 
 ## Printer protocol notes
 
-These command bytes were verified on the NCR 7198 used for this project:
+The text, feed, and cut commands were verified on the NCR 7198 used for this project. The raster and justification commands follow the NCR 7198 Owner's Manual and automated byte-level tests, but remain part of the physical v1 acceptance check.
 
 | Operation | Bytes |
 | --- | --- |
@@ -281,7 +282,19 @@ These command bytes were verified on the NCR 7198 used for this project:
 | Center justification | `1B 61 01` |
 | 24-dot double-density raster band | `1B 2A 21 nL nH ...` |
 
-Each copy is emitted as initialize, pitch selection, pre-feed, receipt lines, post-feed, optional cut, and restore-standard-pitch.
+Each copy is emitted as initialize, pitch selection, pre-feed, optional top logo, receipt lines, optional bottom logo, post-feed, optional cut, and restore-standard-pitch.
+
+## V1 acceptance checklist
+
+Before tagging v1, verify the published package on the target Pi and NCR 7198:
+
+- Web and Pi versions match, and `/api/health` reports the expected deployment.
+- A normal text receipt previews, prints once, feeds, and cuts correctly.
+- A representative PNG logo prints at both top and bottom without distortion or raster overlap.
+- A small logo is not enlarged, and an oversized logo scales to the receipt width.
+- Unplugging the printer leaves the web interface online with `printerAvailable=false`; reconnecting restores it without restarting the Pi.
+- Rebooting the Pi restores port 80, `/dev/ncr7198`, and the bridge service automatically.
+- The 41-line calibration receipt measured 15.75 cm cut-to-cut: 1.75 cm from the leading cut to the first printed line and 14.00 cm for the printed rows. The guard rounds those observations conservatively to 0.70 inch and 7.40 lines per inch.
 
 The Linux shell's built-in `printf` may print `\xNN` text literally. For direct printer diagnostics, use `/usr/bin/printf` or POSIX octal escapes.
 
@@ -290,6 +303,7 @@ The Linux shell's built-in `printf` may print `\xNN` text literally. For direct 
 - The service has intentionally no authentication and allows cross-origin API requests.
 - Keep port 80 limited to the trusted LAN. Do not expose or forward it to the public internet.
 - The bridge supports the printer's confirmed printable ASCII range, not emoji or arbitrary Unicode.
+- A page hosted on public HTTPS generally cannot call this bridge over plain private-LAN HTTP because of browser mixed-content/private-network protections. Host the page on the Pi or another trusted HTTP origin unless TLS is added.
 - `printId` history and queued jobs are not persistent across restarts.
 - The printer does not provide reliable confirmation that paper physically printed.
 - The Pi installer supports one NCR EPiC device with USB identity `0404:0312` and assigns it `/dev/ncr7198`.

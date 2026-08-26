@@ -18,7 +18,9 @@ var request = new
     wrap = "none",
     compressed = false,
     cut = true,
-    copies = 1
+    copies = 1,
+    logo = (string?)null,
+    logoPosition = "top"
 };
 
 var preview = await client.PostAsJsonAsync("/api/preview", request);

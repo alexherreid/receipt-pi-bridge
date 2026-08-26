@@ -14,6 +14,8 @@ $body = @{
     compressed = $false
     cut = $true
     copies = 1
+    logo = $null
+    logoPosition = 'top'
 } | ConvertTo-Json
 
 Invoke-RestMethod -Method Post -Uri "$PiAddress/api/preview" -ContentType 'application/json' -Body $body

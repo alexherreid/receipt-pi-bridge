@@ -51,7 +51,7 @@ TOTAL                                 $12.00</textarea>
           <label>Copies <input id="copies" type="number" min="1" max="3" value="1" required></label>
           <label>Feed before <span>lines</span><input id="pre-lines" type="number" min="0" max="10" value="0" required></label>
           <label>Feed after <span>lines</span><input id="post-lines" type="number" min="0" max="10" value="4" required></label>
-          <label class="logo-image">Logo image <span>optional</span><input id="logo" type="file" accept="image/png,image/jpeg,image/bmp,image/gif,image/x-tga"></label>
+          <label class="logo-image">Logo image <span>optional</span><input id="logo" type="file" accept="image/png,image/jpeg,image/bmp,image/gif,image/x-tga,.tga,.psd"></label>
           <label>Logo position <select id="logo-position"><option value="top" selected>Top</option><option value="bottom">Bottom</option></select></label>
         </div>
         <div class="checks">
@@ -59,7 +59,7 @@ TOTAL                                 $12.00</textarea>
           <label><input id="cut" type="checkbox" checked> Cut at end of print</label>
         </div>
         <p id="cut-note" class="help hidden">Cut is required when printing multiple copies.</p>
-        <p class="help">Maximum estimated paper use is 8 inches, including feeds, logos, and copies.</p>
+        <p class="help">Maximum estimated paper use is 8 inches, including feeds, logos, cuts, and copies.</p>
       </section>
 
       <div id="message" class="message hidden" role="status"></div>
