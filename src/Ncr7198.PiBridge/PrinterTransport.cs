@@ -2,6 +2,7 @@ namespace Ncr7198.PiBridge;
 
 public interface IPrinterTransport
 {
+    string Mode { get; }
     string Description { get; }
     bool IsAvailable();
     Task WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken);
@@ -23,6 +24,8 @@ public sealed class PrinterTransport : IPrinterTransport
     private bool UseFileTransport =>
         _options.Transport.Equals("File", StringComparison.OrdinalIgnoreCase) ||
         (_options.Transport.Equals("Auto", StringComparison.OrdinalIgnoreCase) && !OperatingSystem.IsLinux());
+
+    public string Mode => UseFileTransport ? "File" : "Device";
 
     public string Description => UseFileTransport
         ? $"Development files: {Path.GetFullPath(OutputDirectory)}"

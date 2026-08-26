@@ -6,6 +6,8 @@
 .vs/
 **/bin/
 **/obj/
+**/printed-jobs/
+publish/
 
 # User-specific files
 *.user

@@ -7,7 +7,16 @@ public sealed class ReceiptRenderer
     public const int StandardWidth = 44;
     public const int CompressedWidth = 56;
     public const int MaxContentCharacters = 16 * 1024;
-    public const int MaxRenderedLines = 500;
+    public const int PrinterDotsPerInch = 203;
+    public const int LogoRasterBandHeightDots = 24;
+    public const double DefaultTextLinesPerInch = 7.52;
+    public const double MaximumPaperLengthInches = 8;
+    private readonly LogoRenderer _logoRenderer;
+
+    public ReceiptRenderer(LogoRenderer? logoRenderer = null)
+    {
+        _logoRenderer = logoRenderer ?? new LogoRenderer();
+    }
 
     public RenderedPrintJob Render(PrintRequest request)
     {
@@ -18,12 +27,18 @@ public sealed class ReceiptRenderer
         var renderedLines = request.Lines is not null
             ? RenderLiteralLines(request.Lines, request.Wrap, width)
             : RenderContent(request.Content, request.Wrap, width);
+        var logo = _logoRenderer.Render(request.Logo);
 
         var effectiveCut = request.Cut || request.Copies > 1;
         var cutForced = !request.Cut && request.Copies > 1;
-        var printedLineCount = checked((request.PrePrintLines + renderedLines.Count + request.PostPrintLines) * request.Copies);
-        if (printedLineCount > MaxRenderedLines)
-            throw new PrintValidationException($"Rendered output is {printedLineCount} lines; the maximum is {MaxRenderedLines} including feeds and copies.");
+        var textRows = checked(request.PrePrintLines + renderedLines.Count + request.PostPrintLines);
+        var estimatedInchesPerCopy = textRows / DefaultTextLinesPerInch +
+            (logo?.RasterBands ?? 0) * LogoRasterBandHeightDots / (double)PrinterDotsPerInch;
+        var estimatedInches = estimatedInchesPerCopy * request.Copies;
+        if (estimatedInches > MaximumPaperLengthInches)
+        {
+            throw new PrintValidationException($"Estimated paper length is {estimatedInches:F2} inches; the maximum is {MaximumPaperLengthInches:F0} inches including text, feeds, logos, and copies.");
+        }
 
         var receipt = new NcrReceipt();
         var preview = new List<string>();
@@ -31,11 +46,13 @@ public sealed class ReceiptRenderer
         {
             receipt.Initialize().Compressed(request.Compressed).Feed(request.PrePrintLines);
             preview.AddRange(Enumerable.Repeat(string.Empty, request.PrePrintLines));
+            if (logo is not null && request.LogoPosition == "top") AddLogo(receipt, preview, logo);
             foreach (var line in renderedLines)
             {
                 receipt.Line(line);
                 preview.Add(line);
             }
+            if (logo is not null && request.LogoPosition == "bottom") AddLogo(receipt, preview, logo);
             receipt.Feed(request.PostPrintLines);
             preview.AddRange(Enumerable.Repeat(string.Empty, request.PostPrintLines));
             if (effectiveCut)
@@ -61,6 +78,8 @@ public sealed class ReceiptRenderer
             throw new PrintValidationException("copies must be between 1 and 3.");
         if (request.Wrap is not ("none" or "word"))
             throw new PrintValidationException("wrap must be 'none' or 'word'.");
+        if (request.LogoPosition is not ("top" or "bottom"))
+            throw new PrintValidationException("logoPosition must be 'top' or 'bottom'.");
         if (NormalizePrintId(request.PrintId) is { Length: > 128 })
             throw new PrintValidationException("printId cannot exceed 128 characters.");
     }
@@ -104,11 +123,18 @@ public sealed class ReceiptRenderer
 
         var wrapped = new List<string>();
         for (var index = 0; index < explicitLines.Length; index++)
-            WordWrap(explicitLines[index], width, index + 1, wrapped);
+            WordWrap(explicitLines[index], width, wrapped);
         return wrapped;
     }
 
-    private static void WordWrap(string line, int width, int sourceLineNumber, List<string> output)
+    private static void AddLogo(NcrReceipt receipt, List<string> preview, RenderedLogo logo)
+    {
+        receipt.Logo(logo);
+        preview.Add($"[LOGO: {logo.Width}x{logo.Height}]");
+        preview.AddRange(Enumerable.Repeat(string.Empty, Math.Max(0, logo.RasterBands - 1)));
+    }
+
+    private static void WordWrap(string line, int width, List<string> output)
     {
         var words = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0)
@@ -117,25 +143,31 @@ public sealed class ReceiptRenderer
             return;
         }
 
-        var current = words[0];
-        ValidateWord(current, width, sourceLineNumber);
-        foreach (var word in words.Skip(1))
+        var current = string.Empty;
+        foreach (var sourceWord in words)
         {
-            ValidateWord(word, width, sourceLineNumber);
-            if (current.Length + 1 + word.Length <= width) current += " " + word;
+            var word = sourceWord;
+            while (word.Length > width)
+            {
+                if (current.Length > 0)
+                {
+                    output.Add(current);
+                    current = string.Empty;
+                }
+                output.Add(word[..width]);
+                word = word[width..];
+            }
+
+            if (word.Length == 0) continue;
+            if (current.Length == 0) current = word;
+            else if (current.Length + 1 + word.Length <= width) current += $" {word}";
             else
             {
                 output.Add(current);
                 current = word;
             }
         }
-        output.Add(current);
-    }
-
-    private static void ValidateWord(string word, int width, int sourceLineNumber)
-    {
-        if (word.Length > width)
-            throw new PrintValidationException($"Word '{word}' on content line {sourceLineNumber} is {word.Length} characters; maximum width is {width}.");
+        if (current.Length > 0) output.Add(current);
     }
 
     private static void ValidatePrintableAscii(string value, string field, bool allowNewLines)

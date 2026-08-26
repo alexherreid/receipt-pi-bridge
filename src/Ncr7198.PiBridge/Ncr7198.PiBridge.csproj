@@ -5,5 +5,9 @@
     <Nullable>enable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
+  </ItemGroup>
 </Project>
 

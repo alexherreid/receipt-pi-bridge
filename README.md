@@ -2,14 +2,17 @@
 
 Internal ASP.NET Core 8 Minimal API and web app for exposing an NCR 7198 receipt printer over a trusted LAN through a Raspberry Pi 4.
 
-The printer model used to develop the bridge is NCR `7198-2003-9001`. It appears as an EPiC/Edgeport serial device and is available on the Pi as `/dev/ttyUSB0`.
+The printer model used to develop the bridge is NCR `7198-2003-9001`. It appears as an EPiC/Edgeport serial device; the Pi installer gives it the stable alias `/dev/ncr7198`.
+
+For a new Pi and printer, follow [PI-SETUP.md](PI-SETUP.md) from imaging Raspberry Pi OS through printer configuration, installation, verification, updates, and troubleshooting.
 
 ## Features
 
-- Serves a one-page receipt editor at `http://<pi-address>:9719/`.
-- Supports the same options from the web page and JSON API: content or literal lines, pre-print feed, post-print feed, wrapping, compressed mode, cutting, copies, and optional `printId`.
+- Serves a one-page receipt editor from the Pi on standard HTTP port 80 at `http://<pi-address>/`.
+- Supports the same options from the web page and JSON API: content or literal lines, one optional top/bottom logo, pre-print feed, post-print feed, wrapping, compressed mode, cutting, copies, and optional `printId`.
 - Provides `POST /api/preview` to validate and render a receipt without accessing the printer.
 - Provides `POST /api/print` to queue, render, print, feed, and cut a receipt.
+- Provides `GET /api/health` so a remote web page can distinguish a reachable Pi from an attached printer.
 - Supports standard 44-column and compressed 56-column printing.
 - Accepts printable ASCII `U+0020` through `U+007E`; content may also contain CR/LF line breaks.
 - Serializes print jobs so bytes from separate requests cannot interleave.
@@ -24,6 +27,7 @@ The printer model used to develop the bridge is NCR `7198-2003-9001`. It appears
 
 ```text
 Ncr7198.PiBridge.sln
+PI-SETUP.md                      Ground-up Raspberry Pi and printer setup guide
 src/Ncr7198.PiBridge/             ASP.NET Core web app, API, renderer, and transport
 src/Ncr7198.PiBridge/wwwroot/     Browser interface
 tests/Ncr7198.PiBridge.Tests/     Renderer and printId behavior tests
@@ -57,6 +61,12 @@ src\Ncr7198.PiBridge\printed-jobs\
 
 These `.bin` files are deliberately excluded from Git. Receipt text and `printId` are not retained by the web page. Browser-local display settings are retained.
 
+To use the local web interface with a Pi, enter the Pi bridge origin, for example `http://receipt-pi.local`, in **Bridge URL** and select **Save and connect**. Health, Preview, and Print then use that bridge directly. The address is retained only in browser local storage and can be changed at any time. The status distinguishes development file mode, a reachable Pi without a printer, and a reachable Pi with its printer.
+
+Print is enabled whenever a Device-mode Pi bridge is reachable, even when that Pi currently reports its printer unavailable. It remains disabled while the Pi is offline, health is unknown, or the selected target is the local development file transport. On desktop, opening either preview moves it into a second column; smaller screens retain the stacked layout.
+
+The editor opens in Lines mode with the literal receipt example. Content mode has its own paragraph example and word-wraps without enforcing a width in the editor; switching modes preserves each draft for the current page session. Lines mode preserves each entered row literally and enforces the selected 44- or 56-column printer width. Preview reports an approximate paper length using the printer's default 7.52 text lines per inch and 24-dot logo bands at 203 DPI, and **JSON Body POST Preview** validates then shows the exact request body that can be sent to `POST /api/print`. **Copy JSON** copies that validated body, including on ordinary LAN HTTP through a browser fallback. A failed validation clears and hides the corresponding prior preview.
+
 Run the automated tests with:
 
 ```powershell
@@ -73,7 +83,17 @@ Use **Test > Run All Tests** to run `Ncr7198.PiBridge.Tests`.
 
 ## API
 
-The service intentionally has no authentication. Both endpoints accept `application/json` and the same request body.
+The service intentionally has no authentication. Both POST endpoints accept `application/json` and the same request body.
+
+### Health
+
+```http
+GET /api/health
+```
+
+`GET /health` remains available as a compatibility alias. A successful response proves the Pi bridge is reachable; `printerAvailable` separately reports whether the configured device transport can currently access the printer. The response's `version` uses the deployment identifier bundled on that Pi, such as `2026.08.25-1`.
+
+The web page displays both its own bundled version and the version reported by the selected Pi. This makes a version mismatch visible when the interface is hosted independently from the bridge.
 
 ### Preview
 
@@ -102,11 +122,17 @@ POST /api/print
   "wrap": "none",
   "compressed": false,
   "cut": true,
-  "copies": 1
+  "copies": 1,
+  "logo": "data:image/png;base64,iVBORw0KGgo...",
+  "logoPosition": "top"
 }
 ```
 
 `lines` and `content` are nullable. If `lines` is non-null, it wins and `content` is ignored. If `lines` is null, `content` is required.
+
+`logo` is nullable and carries the image in the request. It accepts either a standard Base64 image data URL such as `data:image/png;base64,...` or raw Base64 image bytes. The JSON example abbreviates the Base64 and must be replaced with the complete value. PNG, JPEG, BMP, TGA, PSD, and GIF files are accepted; animated images use the first frame. The image is composited onto white, converted to monochrome, centered, and proportionally reduced to the 576-dot receipt width when necessary. Smaller images are not enlarged. `logoPosition` accepts `"top"` or `"bottom"` and defaults to `"top"`.
+
+The web interface reads the chosen file into the request automatically. The image itself is not retained in browser storage; choose it again after reloading the page. `logoPosition` is retained with the other browser-local display settings.
 
 Defaults:
 
@@ -118,6 +144,8 @@ Defaults:
 | `compressed` | `false` |
 | `cut` | `true` |
 | `copies` | `1` |
+| `logo` | `null` |
+| `logoPosition` | `"top"` |
 
 ### Preview response
 
@@ -167,11 +195,13 @@ See `examples/CSharpClient.cs` and `examples/test-from-powershell.ps1` for compl
 - `content` must be non-empty when used. Its explicit lines are left-aligned.
 - `wrap` accepts only `"none"` or `"word"`.
 - `none` rejects a rendered line wider than 44 columns, or 56 columns when compressed.
-- `word` is available only with `content`. It wraps at spaces, preserves explicit newlines, normalizes spaces between words, and rejects a single word wider than the selected mode.
+- `word` is available only with `content`. It wraps at spaces, preserves explicit newlines, normalizes spaces between words, and splits an unbroken word across lines when necessary.
 - Printable receipt characters are limited to ASCII `U+0020` through `U+007E`. Tabs, extended ASCII, emoji, smart punctuation, and other Unicode characters are rejected.
 - Input receipt content is limited to 16,384 characters.
-- Final output is limited to 500 lines after wrapping, feeds, and copies.
+- Estimated physical output is limited to 8 inches. The calculation uses the printer's default 7.52 text lines per inch and 24-dot logo raster bands at 203 DPI, including explicit feeds and all copies.
 - `printId` is optional, trimmed, case-sensitive, and limited to 128 characters.
+- `logo` is optional, limited to one Base64-encoded image, 8 MB after Base64 decoding, and 8,192 pixels on either source dimension.
+- `logoPosition` must be `"top"` or `"bottom"`, even when no logo is supplied.
 - The fourth unique outstanding print request receives HTTP 429. A matching duplicate `printId` is resolved before queue capacity is checked.
 
 Validation failures return HTTP 400 with a JSON `error` property. A reused `printId` conflict returns 409, a full queue returns 429, and a printer/device failure returns 503.
@@ -182,14 +212,14 @@ Settings are under `Bridge` in `src/Ncr7198.PiBridge/appsettings.json` and can b
 
 | Setting | Pi value | Purpose |
 | --- | --- | --- |
-| `Bridge__DevicePath` | `/dev/ttyUSB0` | EPiC/Edgeport serial device |
-| `Bridge__ListenUrl` | `http://0.0.0.0:9719` | LAN listener |
+| `Bridge__DevicePath` | `/dev/ncr7198` | Stable udev alias for the EPiC/Edgeport serial device |
+| `Bridge__ListenUrl` | `http://0.0.0.0:80` | Standard HTTP LAN listener on the Pi |
 | `Bridge__Transport` | `Device` | Writes to the real printer; use `File` for development |
 | `Bridge__DevelopmentOutputDirectory` | `printed-jobs` | Output directory for file-backed development prints |
 | `Bridge__MaxOutstandingJobs` | `3` | Active plus waiting requests |
 | `Bridge__PrintIdLifetimeHours` | `24` | In-memory duplicate window |
 
-`GET /health` returns the selected transport and whether it is currently available.
+`GET /api/health` and its compatibility alias `GET /health` return the selected transport mode, whether that transport is available, and whether a real printer device is available.
 
 ## Raspberry Pi deployment
 
@@ -200,11 +230,16 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\Publish-Pi.ps1
 ```
 
-The output is written to `publish\pi-arm64`. Copy that directory to the Pi:
+Publishing stamps `wwwroot/version.txt` with `YYYY.MM.DD`. Additional publishes on the same date increment `-1`, `-2`, and so on. To reproduce or override a specific identifier, pass `-Version 2026.08.25-1`.
+
+The output is written to `publish\pi-arm64`. Create the temporary destination and copy the directory contents to the Pi:
 
 ```powershell
-scp -r .\publish\pi-arm64 piuser@192.168.1.50:/tmp/ncr7198
+ssh piuser@192.168.1.50 "mkdir -p /tmp/ncr7198"
+scp -r .\publish\pi-arm64\* piuser@192.168.1.50:/tmp/ncr7198/
 ```
+
+The installer does not require the copied source binary to retain its executable bit; it installs the application with mode `0755`.
 
 Install it on the Pi:
 
@@ -214,9 +249,9 @@ cd /tmp/ncr7198
 sudo bash install-on-pi.sh
 ```
 
-The installer verifies the printer device, creates the restricted `ncrprint` account, installs the application under `/opt/ncr7198-bridge`, configures the serial device in raw mode, and enables the `ncr7198-bridge` systemd service.
+The installer verifies USB device `0404:0312`, installs a udev rule for `/dev/ncr7198`, creates the restricted `ncrprint` account, installs the application under `/opt/ncr7198-bridge`, configures the serial device in raw mode, and enables the `ncr7198-bridge` systemd service. The service stays online without the printer; reconnecting the printer recreates the alias and reapplies its raw tty settings. See [PI-SETUP.md](PI-SETUP.md) for the complete ground-up procedure.
 
-Open `http://<pi-address>:9719/` from another machine on the LAN.
+Open `http://<pi-address>/` from another machine on the LAN.
 
 ## Operations
 
@@ -229,7 +264,8 @@ sudo journalctl -u ncr7198-bridge -f
 Check the device directly with:
 
 ```bash
-ls -l /dev/ttyUSB0
+ls -l /dev/ncr7198
+readlink -f /dev/ncr7198
 ```
 
 ## Printer protocol notes
@@ -242,6 +278,8 @@ These command bytes were verified on the NCR 7198 used for this project:
 | Standard pitch, 44 columns | `1B 16 00` |
 | Compressed pitch, 56 columns | `1B 16 01` |
 | Feed to cutter and cut | `1D 56 41 00` |
+| Center justification | `1B 61 01` |
+| 24-dot double-density raster band | `1B 2A 21 nL nH ...` |
 
 Each copy is emitted as initialize, pitch selection, pre-feed, receipt lines, post-feed, optional cut, and restore-standard-pitch.
 
@@ -250,11 +288,11 @@ The Linux shell's built-in `printf` may print `\xNN` text literally. For direct 
 ## Security and current limitations
 
 - The service has intentionally no authentication and allows cross-origin API requests.
-- Keep port 9719 limited to the trusted LAN. Do not expose or forward it to the public internet.
+- Keep port 80 limited to the trusted LAN. Do not expose or forward it to the public internet.
 - The bridge supports the printer's confirmed printable ASCII range, not emoji or arbitrary Unicode.
 - `printId` history and queued jobs are not persistent across restarts.
 - The printer does not provide reliable confirmation that paper physically printed.
-- The default device path assumes the printer remains `/dev/ttyUSB0`. Consider a persistent udev alias if the Pi will use multiple USB serial devices.
+- The Pi installer supports one NCR EPiC device with USB identity `0404:0312` and assigns it `/dev/ncr7198`.
 
 ## Development notes
 

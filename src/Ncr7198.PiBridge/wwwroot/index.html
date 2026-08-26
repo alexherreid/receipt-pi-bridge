@@ -9,25 +9,38 @@
 <body>
   <main>
     <header>
-      <div><span class="eyebrow">NCR 7198</span><h1>Receipt printer</h1></div>
-      <span id="health" class="status">Checking printer...</span>
+      <div><span class="eyebrow">NCR 7198</span><h1>Receipt Printer</h1></div>
+      <div class="header-status"><span id="health" class="status">Checking printer...</span><span id="versions" class="versions">Web version loading · Pi version unknown</span></div>
     </header>
 
+    <form id="connection-form" class="card connection-card">
+      <div class="connection-field">
+        <label for="bridge-url">Bridge URL</label>
+        <input id="bridge-url" type="text" inputmode="url" autocomplete="url" spellcheck="false" placeholder="http://receipt-pi.local" required>
+        <p class="help">The Pi address and port, stored only in this browser.</p>
+      </div>
+      <button id="connect-button" class="secondary" type="submit">Save and connect</button>
+    </form>
+
+    <div class="workspace">
     <form id="receipt-form">
       <section class="card editor-card">
         <div class="section-heading">
           <h2>Receipt</h2>
           <div class="segmented" role="group" aria-label="Input mode">
-            <button type="button" data-mode="content" class="active">Content</button>
-            <button type="button" data-mode="lines">Lines</button>
+            <button type="button" data-mode="content">Content</button>
+            <button type="button" data-mode="lines" class="active">Lines</button>
           </div>
         </div>
-        <p id="mode-help" class="help">Content can be word-wrapped. Explicit line breaks are preserved.</p>
-        <textarea id="receipt-text" rows="14" spellcheck="false" maxlength="16384" required>MY STORE
+        <p id="mode-help" class="help">Each textarea row becomes one literal width-limited line. Spaces and blank lines are preserved.</p>
+        <div class="editor-shell">
+          <pre id="line-numbers" class="line-numbers" aria-hidden="true">1</pre>
+          <textarea id="receipt-text" rows="10" wrap="off" spellcheck="false" maxlength="16384" required>MY STORE
 --------------------------------------------
 Widget                                $12.00
 
 TOTAL                                 $12.00</textarea>
+        </div>
         <div class="editor-footer"><span id="column-rule">44 columns</span><span id="character-count">0 / 16,384</span></div>
       </section>
 
@@ -38,26 +51,37 @@ TOTAL                                 $12.00</textarea>
           <label>Copies <input id="copies" type="number" min="1" max="3" value="1" required></label>
           <label>Feed before <span>lines</span><input id="pre-lines" type="number" min="0" max="10" value="0" required></label>
           <label>Feed after <span>lines</span><input id="post-lines" type="number" min="0" max="10" value="4" required></label>
-          <label>Wrap<select id="wrap"><option value="none">None</option><option value="word">Word</option></select></label>
+          <label class="logo-image">Logo image <span>optional</span><input id="logo" type="file" accept="image/png,image/jpeg,image/bmp,image/gif,image/x-tga"></label>
+          <label>Logo position <select id="logo-position"><option value="top" selected>Top</option><option value="bottom">Bottom</option></select></label>
         </div>
         <div class="checks">
-          <label><input id="compressed" type="checkbox"> Compressed <span>(56 columns)</span></label>
-          <label><input id="cut" type="checkbox" checked> Cut after receipt</label>
+          <label><input id="compressed" type="checkbox"> Compressed text output <span>(56 characters wide)</span></label>
+          <label><input id="cut" type="checkbox" checked> Cut at end of print</label>
         </div>
         <p id="cut-note" class="help hidden">Cut is required when printing multiple copies.</p>
+        <p class="help">Maximum estimated paper use is 8 inches, including feeds, logos, and copies.</p>
       </section>
 
       <div id="message" class="message hidden" role="status"></div>
       <div class="actions">
         <button id="preview-button" class="secondary" type="button">Preview</button>
-        <button id="print-button" class="primary" type="submit">Print</button>
+        <button id="json-preview-button" class="secondary" type="button">JSON Body POST Preview</button>
+        <button id="print-button" class="primary" type="submit" disabled title="Waiting for the Pi bridge.">Print</button>
       </div>
     </form>
 
+    <div class="preview-rail">
     <section id="preview-card" class="card preview-card hidden">
-      <div class="section-heading"><h2>Preview</h2><span id="preview-width"></span></div>
+      <div class="section-heading"><h2>Preview</h2><div class="preview-metrics"><span id="preview-width"></span><span id="paper-length"></span></div></div>
       <div id="preview" class="paper"></div>
     </section>
+
+    <section id="json-preview-card" class="card preview-card hidden">
+      <div class="section-heading"><h2>JSON Body for POST /api/print</h2><button id="copy-json-button" class="copy-json-button secondary" type="button" disabled>Copy JSON</button></div>
+      <pre id="json-preview" class="json-preview"></pre>
+    </section>
+    </div>
+    </div>
   </main>
   <script src="app.js"></script>
 </body>

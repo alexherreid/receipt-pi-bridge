@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 
-using var client = new HttpClient { BaseAddress = new Uri("http://192.168.1.50:9719") };
+using var client = new HttpClient { BaseAddress = new Uri("http://192.168.1.50") };
 
 var request = new
 {

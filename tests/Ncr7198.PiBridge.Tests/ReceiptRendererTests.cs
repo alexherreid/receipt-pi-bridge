@@ -62,6 +62,18 @@ public sealed class ReceiptRendererTests
     }
 
     [Fact]
+    public void WordWrap_SplitsLongUnbrokenContentWithoutRejectingIt()
+    {
+        var text = new string('X', 45);
+        var job = _renderer.Render(new PrintRequest
+        {
+            Content = text, Wrap = "word", PostPrintLines = 0, Cut = false
+        });
+
+        Assert.Equal(new[] { new string('X', 44), "X" }, job.Preview);
+    }
+
+    [Fact]
     public void Lines_WinWhenContentIsAlsoSupplied()
     {
         var job = _renderer.Render(new PrintRequest
@@ -105,6 +117,72 @@ public sealed class ReceiptRendererTests
         Assert.True(job.CutForced);
     }
 
+    [Fact]
+    public void Logo_DefaultsToTopAndEmitsCenteredTwentyFourDotRasterData()
+    {
+        var logo = AsDataUrl(CreateBmp(2, 1, (x, _) => x == 0));
+        var job = _renderer.Render(new PrintRequest
+        {
+            Content = "Text", Logo = logo, PostPrintLines = 0, Cut = false
+        });
+
+        Assert.Equal("[LOGO: 2x1]", job.Preview[0]);
+        Assert.Equal("Text", job.Preview[1]);
+        var command = job.Bytes.AsSpan().IndexOf(new byte[] { 0x1B, 0x2A, 0x21, 0x02, 0x00 });
+        Assert.True(command >= 0);
+        Assert.Equal(new byte[] { 0x80, 0x00, 0x00, 0x00, 0x00, 0x00 }, job.Bytes[(command + 5)..(command + 11)]);
+        Assert.True(job.Bytes.AsSpan().IndexOf(new byte[] { 0x1B, 0x61, 0x01 }) >= 0);
+        Assert.True(job.Bytes.AsSpan().IndexOf(new byte[] { 0x1B, 0x33, 0x30 }) >= 0);
+        Assert.True(job.Bytes.AsSpan().IndexOf(new byte[] { 0x1B, 0x33, 0x36 }) >= 0);
+    }
+
+    [Fact]
+    public void Logo_CanBePlacedBelowText()
+    {
+        var job = _renderer.Render(new PrintRequest
+        {
+            Content = "Text", Logo = Convert.ToBase64String(CreateBmp(1, 1, (_, _) => true)),
+            LogoPosition = "bottom", PostPrintLines = 0, Cut = false
+        });
+
+        Assert.Equal("Text", job.Preview[0]);
+        Assert.StartsWith("[LOGO:", job.Preview[1]);
+    }
+
+    [Fact]
+    public void Logo_ScalesDownToReceiptWidthButDoesNotScaleUp()
+    {
+        var large = _renderer.Render(new PrintRequest
+        {
+            Content = "Text", Logo = Convert.ToBase64String(CreateBmp(600, 100, (_, _) => true))
+        });
+        var small = _renderer.Render(new PrintRequest
+        {
+            Content = "Text", Logo = Convert.ToBase64String(CreateBmp(100, 20, (_, _) => true))
+        });
+
+        Assert.Equal("[LOGO: 576x96]", large.Preview[0]);
+        Assert.Equal("[LOGO: 100x20]", small.Preview[0]);
+    }
+
+    [Fact]
+    public void LogoPosition_RejectsUnknownValues()
+    {
+        var exception = Assert.Throws<PrintValidationException>(() =>
+            _renderer.Render(new PrintRequest { Content = "Text", LogoPosition = "middle" }));
+
+        Assert.Contains("logoPosition", exception.Message);
+    }
+
+    [Fact]
+    public void Logo_RejectsInvalidBase64()
+    {
+        var exception = Assert.Throws<PrintValidationException>(() =>
+            _renderer.Render(new PrintRequest { Content = "Text", Logo = "not-base64" }));
+
+        Assert.Contains("valid Base64", exception.Message);
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(11)]
@@ -112,6 +190,20 @@ public sealed class ReceiptRendererTests
     {
         Assert.Throws<PrintValidationException>(() =>
             _renderer.Render(new PrintRequest { Content = "Test", PrePrintLines = lines }));
+    }
+
+    [Fact]
+    public void PaperLimit_AllowsAtMostEightEstimatedInches()
+    {
+        var withinLimit = string.Join('\n', Enumerable.Repeat("X", 56));
+        var overLimit = string.Join('\n', Enumerable.Repeat("X", 57));
+
+        _renderer.Render(new PrintRequest { Content = withinLimit });
+        var exception = Assert.Throws<PrintValidationException>(() =>
+            _renderer.Render(new PrintRequest { Content = overLimit }));
+
+        Assert.Contains("8.11 inches", exception.Message);
+        Assert.Contains("maximum is 8 inches", exception.Message);
     }
 
     [Fact]
@@ -153,6 +245,7 @@ public sealed class ReceiptRendererTests
 
     private sealed class RecordingTransport : IPrinterTransport
     {
+        public string Mode => "Device";
         public string Description => "test";
         public int WriteCount { get; private set; }
         public bool IsAvailable() => true;
@@ -162,4 +255,36 @@ public sealed class ReceiptRendererTests
             return Task.CompletedTask;
         }
     }
+
+    private static byte[] CreateBmp(int width, int height, Func<int, int, bool> isBlack)
+    {
+        var rowBytes = ((width * 3 + 3) / 4) * 4;
+        var pixelBytes = rowBytes * height;
+        var bytes = new byte[54 + pixelBytes];
+        bytes[0] = (byte)'B';
+        bytes[1] = (byte)'M';
+        BitConverter.GetBytes(bytes.Length).CopyTo(bytes, 2);
+        BitConverter.GetBytes(54).CopyTo(bytes, 10);
+        BitConverter.GetBytes(40).CopyTo(bytes, 14);
+        BitConverter.GetBytes(width).CopyTo(bytes, 18);
+        BitConverter.GetBytes(height).CopyTo(bytes, 22);
+        BitConverter.GetBytes((short)1).CopyTo(bytes, 26);
+        BitConverter.GetBytes((short)24).CopyTo(bytes, 28);
+        BitConverter.GetBytes(pixelBytes).CopyTo(bytes, 34);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var value = isBlack(x, y) ? (byte)0 : (byte)255;
+                var offset = 54 + (height - 1 - y) * rowBytes + x * 3;
+                bytes[offset] = value;
+                bytes[offset + 1] = value;
+                bytes[offset + 2] = value;
+            }
+        }
+
+        return bytes;
+    }
+
+    private static string AsDataUrl(byte[] bytes) => $"data:image/bmp;base64,{Convert.ToBase64String(bytes)}";
 }

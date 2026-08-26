@@ -11,6 +11,8 @@ public sealed record PrintRequest
     public bool Compressed { get; init; }
     public bool Cut { get; init; } = true;
     public int Copies { get; init; } = 1;
+    public string? Logo { get; init; }
+    public string LogoPosition { get; init; } = "top";
 }
 
 public sealed record RenderedPrintJob(byte[] Bytes, string[] Preview, string Hash, string? PrintId,
@@ -22,6 +24,6 @@ public sealed record PrintResult(string Status, string? PrintId, int Copies,
 public sealed record PrintSubmission(Task<PrintResult> Result, bool IsDuplicate);
 
 public sealed class PrintValidationException(string message) : Exception(message);
-public sealed class PrintQueueFullException : Exception("The print queue is full. Try again shortly.");
+public sealed class PrintQueueFullException() : Exception("The print queue is full. Try again shortly.");
 public sealed class PrintIdConflictException(string printId)
     : Exception($"printId '{printId}' was already used for a different print job.");

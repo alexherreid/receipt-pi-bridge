@@ -14,4 +14,4 @@ Keep a repository containing these binaries private unless the applicable vendor
 - `digi-edgeport/CHECKSUMS.sha256`: SHA-256 hashes for the archived files.
 - `digi-edgeport/*.url`: shortcuts to the current official support and installation pages.
 
-The current bridge application uses `/dev/ttyUSB0` on Linux and a safe file-backed transport on Windows. Installing the Edgeport driver creates the Windows COM port, but direct Windows COM printing still requires a serial-port transport to be added to the application.
+The current bridge application uses the udev alias `/dev/ncr7198` on Linux and a safe file-backed transport on Windows. Installing the Edgeport driver creates the Windows COM port, but direct Windows COM printing still requires a serial-port transport to be added to the application.

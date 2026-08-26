@@ -12,26 +12,27 @@ if (!OperatingSystem.IsWindows() && options.Transport != "File" && !options.Devi
     throw new InvalidOperationException("Bridge:DevicePath must be a device below /dev/.");
 
 builder.WebHost.UseUrls(options.ListenUrl);
-builder.WebHost.ConfigureKestrel(server => server.Limits.MaxRequestBodySize = 32 * 1024);
+builder.WebHost.ConfigureKestrel(server => server.Limits.MaxRequestBodySize = 12 * 1024 * 1024);
 builder.Services.Configure<JsonOptions>(json => json.SerializerOptions.PropertyNameCaseInsensitive = true);
 builder.Services.AddCors(cors => cors.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
 builder.Services.AddSingleton(options);
+builder.Services.AddSingleton<LogoRenderer>();
 builder.Services.AddSingleton<ReceiptRenderer>();
 builder.Services.AddSingleton<IPrinterTransport, PrinterTransport>();
 builder.Services.AddSingleton<PrintCoordinator>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<PrintCoordinator>());
 
 var app = builder.Build();
+var versionPath = Path.Combine(app.Environment.WebRootPath, "version.txt");
+var bridgeVersion = File.ReadAllText(versionPath).Trim();
+if (!System.Text.RegularExpressions.Regex.IsMatch(bridgeVersion, @"^\d{4}\.\d{2}\.\d{2}(?:-\d+)?$"))
+    throw new InvalidOperationException("wwwroot/version.txt must use YYYY.MM.DD or YYYY.MM.DD-N.");
 app.UseCors();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/health", (IPrinterTransport printer) => Results.Ok(new
-{
-    service = "NCR 7198 Raspberry Pi Bridge",
-    transport = printer.Description,
-    printerAvailable = printer.IsAvailable()
-}));
+app.MapGet("/health", (IPrinterTransport printer) => Health(printer, bridgeVersion));
+app.MapGet("/api/health", (IPrinterTransport printer) => Health(printer, bridgeVersion));
 
 app.MapPost("/api/preview", (PrintRequest request, ReceiptRenderer renderer) =>
     Execute(() => Results.Ok(renderer.Render(request).Preview)));
@@ -59,6 +60,20 @@ static IResult Execute(Func<IResult> action)
 {
     try { return action(); }
     catch (PrintValidationException exception) { return Error(400, exception.Message); }
+}
+
+static IResult Health(IPrinterTransport printer, string version)
+{
+    var transportAvailable = printer.IsAvailable();
+    return Results.Ok(new
+    {
+        service = "NCR 7198 Raspberry Pi Bridge",
+        version,
+        transportMode = printer.Mode,
+        transport = printer.Description,
+        transportAvailable,
+        printerAvailable = printer.Mode == "Device" && transportAvailable
+    });
 }
 
 static IResult Error(int statusCode, string message) => Results.Json(new { error = message }, statusCode: statusCode);
