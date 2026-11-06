@@ -202,8 +202,46 @@ public sealed class ReceiptRendererTests
         var exception = Assert.Throws<PrintValidationException>(() =>
             _renderer.Render(new PrintRequest { Content = overLimit }));
 
-        Assert.Contains("8.13 inches", exception.Message);
-        Assert.Contains("maximum is 8 inches", exception.Message);
+        Assert.Contains("8.13 inches per copy", exception.Message);
+        Assert.Contains("maximum is 8 inches per copy", exception.Message);
+        Assert.Contains("allowOverLength", exception.Message);
+    }
+
+    [Fact]
+    public void PaperLimit_IsAppliedPerCopyNotToTheTotal()
+    {
+        // ~6.1 inches per copy; 2 copies (~12.2 in total) used to be rejected.
+        var content = string.Join('\n', Enumerable.Repeat("X", 36));
+
+        var job = _renderer.Render(new PrintRequest { Content = content, Copies = 2 });
+
+        Assert.Equal(2, job.Preview.Count(line => line == "[CUT]"));
+    }
+
+    [Fact]
+    public void PaperLimit_CanBeBypassedPerRequest()
+    {
+        var overLimit = string.Join('\n', Enumerable.Repeat("X", 80));
+
+        var job = _renderer.Render(new PrintRequest { Content = overLimit, AllowOverLength = true });
+
+        Assert.Equal("X", job.Preview[79]);
+    }
+
+    [Fact]
+    public void PaperLimit_IsConfigurable()
+    {
+        var content = string.Join('\n', Enumerable.Repeat("X", 60));
+        var raised = new ReceiptRenderer(options: new BridgeOptions { MaxPaperLengthInchesPerCopy = 12 });
+        var disabled = new ReceiptRenderer(options: new BridgeOptions { MaxPaperLengthInchesPerCopy = 0 });
+        var lowered = new ReceiptRenderer(options: new BridgeOptions { MaxPaperLengthInchesPerCopy = 2.5 });
+
+        Assert.Throws<PrintValidationException>(() => _renderer.Render(new PrintRequest { Content = content }));
+        raised.Render(new PrintRequest { Content = content });
+        disabled.Render(new PrintRequest { Content = string.Join('\n', Enumerable.Repeat("X", 500)) });
+        var exception = Assert.Throws<PrintValidationException>(() =>
+            lowered.Render(new PrintRequest { Content = "X\nX\nX\nX\nX\nX\nX\nX\nX\nX\nX\nX\nX\nX" }));
+        Assert.Contains("maximum is 2.5 inches per copy", exception.Message);
     }
 
     [Fact]

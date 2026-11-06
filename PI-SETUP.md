@@ -171,7 +171,7 @@ If using the separate local development web page, enter `http://receipt-pi.local
 
 Preview a receipt before selecting Print. The Pi may be online while `printerAvailable` is false; in that state the UI permits an attempted print, and the API returns a device error if the printer still cannot be opened.
 
-The 8-inch safety limit includes text and feed rows, logo raster height, all copies, and a physically calibrated cutter allowance. The reference receipt containing 41 uncompressed lines with no explicit pre/post feed measured 15.75 cm cut-to-cut: 1.75 cm before the first printed line and 14.00 cm for the printed rows. The calculation conservatively uses 0.70 inch per cut and 7.40 text lines per inch.
+The 8-inch safety limit applies to each copy and includes text and feed rows, logo raster height, and a physically calibrated cutter allowance. To change it without redeploying, add `Bridge__MaxPaperLengthInchesPerCopy=<inches>` (or `0` for no limit) to `/etc/ncr7198-bridge.env` and restart the service. A single request can also skip the limit with `"allowOverLength": true`. The reference receipt containing 41 uncompressed lines with no explicit pre/post feed measured 15.75 cm cut-to-cut: 1.75 cm before the first printed line and 14.00 cm for the printed rows. The calculation conservatively uses 0.70 inch per cut and 7.40 text lines per inch.
 
 ## 8. Firewall and network address
 

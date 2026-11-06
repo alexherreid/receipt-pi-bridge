@@ -11,12 +11,14 @@ public sealed class ReceiptRenderer
     public const int LogoRasterBandHeightDots = 24;
     public const double CalibratedTextLinesPerInch = 7.40;
     public const double CalibratedCutterAllowanceInches = 0.70;
-    public const double MaximumPaperLengthInches = 8;
+    public const double DefaultMaximumPaperLengthInchesPerCopy = 8;
     private readonly LogoRenderer _logoRenderer;
+    private readonly double _maximumPaperLengthInchesPerCopy;
 
-    public ReceiptRenderer(LogoRenderer? logoRenderer = null)
+    public ReceiptRenderer(LogoRenderer? logoRenderer = null, BridgeOptions? options = null)
     {
         _logoRenderer = logoRenderer ?? new LogoRenderer();
+        _maximumPaperLengthInchesPerCopy = options?.MaxPaperLengthInchesPerCopy ?? DefaultMaximumPaperLengthInchesPerCopy;
     }
 
     public RenderedPrintJob Render(PrintRequest request)
@@ -36,10 +38,10 @@ public sealed class ReceiptRenderer
         var estimatedInchesPerCopy = textRows / CalibratedTextLinesPerInch +
             (logo?.RasterBands ?? 0) * LogoRasterBandHeightDots / (double)PrinterDotsPerInch +
             (effectiveCut ? CalibratedCutterAllowanceInches : 0);
-        var estimatedInches = estimatedInchesPerCopy * request.Copies;
-        if (estimatedInches > MaximumPaperLengthInches)
+        if (!request.AllowOverLength && _maximumPaperLengthInchesPerCopy > 0 &&
+            estimatedInchesPerCopy > _maximumPaperLengthInchesPerCopy)
         {
-            throw new PrintValidationException($"Estimated paper length is {estimatedInches:F2} inches; the maximum is {MaximumPaperLengthInches:F0} inches including text, feeds, logos, and copies.");
+            throw new PrintValidationException($"Estimated paper length is {estimatedInchesPerCopy:F2} inches per copy; the maximum is {_maximumPaperLengthInchesPerCopy:0.##} inches per copy including text, feeds, logos, and the cut. Set allowOverLength to true to print anyway.");
         }
 
         var receipt = new NcrReceipt();
