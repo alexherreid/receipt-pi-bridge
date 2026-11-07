@@ -6,6 +6,8 @@ var options = builder.Configuration.GetSection("Bridge").Get<BridgeOptions>() ??
 
 if (options.MaxOutstandingJobs != 3) throw new InvalidOperationException("Bridge:MaxOutstandingJobs must be 3.");
 if (options.PrintIdLifetimeHours != 24) throw new InvalidOperationException("Bridge:PrintIdLifetimeHours must be 24.");
+if (!double.IsFinite(options.MaxPaperLengthInchesPerCopy) || options.MaxPaperLengthInchesPerCopy < 0)
+    throw new InvalidOperationException("Bridge:MaxPaperLengthInchesPerCopy must be 0 (no limit) or a positive number of inches.");
 if (options.Transport is not ("Auto" or "Device" or "File"))
     throw new InvalidOperationException("Bridge:Transport must be Auto, Device, or File.");
 if (!OperatingSystem.IsWindows() && options.Transport != "File" && !options.DevicePath.StartsWith("/dev/", StringComparison.Ordinal))

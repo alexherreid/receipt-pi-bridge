@@ -13,6 +13,7 @@ public sealed record PrintRequest
     public int Copies { get; init; } = 1;
     public string? Logo { get; init; }
     public string LogoPosition { get; init; } = "top";
+    public bool AllowOverLength { get; init; }
 }
 
 public sealed record RenderedPrintJob(byte[] Bytes, string[] Preview, string Hash, string? PrintId,

@@ -124,7 +124,8 @@ POST /api/print
   "cut": true,
   "copies": 1,
   "logo": "data:image/png;base64,iVBORw0KGgo...",
-  "logoPosition": "top"
+  "logoPosition": "top",
+  "allowOverLength": false
 }
 ```
 
@@ -146,6 +147,7 @@ Defaults:
 | `copies` | `1` |
 | `logo` | `null` |
 | `logoPosition` | `"top"` |
+| `allowOverLength` | `false` |
 
 ### Preview response
 
@@ -198,7 +200,8 @@ See `examples/CSharpClient.cs` and `examples/test-from-powershell.ps1` for compl
 - `word` is available only with `content`. It wraps at spaces, preserves explicit newlines, normalizes spaces between words, and splits an unbroken word across lines when necessary.
 - Printable receipt characters are limited to ASCII `U+0020` through `U+007E`. Tabs, extended ASCII, emoji, smart punctuation, and other Unicode characters are rejected.
 - Input receipt content is limited to 16,384 characters.
-- Estimated physical output is limited to 8 inches. The calculation conservatively uses 7.40 text lines per inch, 24-dot logo raster bands at 203 DPI, and a 0.70-inch cutter-position allowance for every cut, including explicit feeds and all copies.
+- Estimated physical output is limited to 8 inches **per copy** (configurable with `Bridge__MaxPaperLengthInchesPerCopy`). Each copy is checked on its own, so 2 copies of a 6-inch receipt are allowed. The calculation conservatively uses 7.40 text lines per inch, 24-dot logo raster bands at 203 DPI, explicit feeds, and a 0.70-inch cutter-position allowance for the cut.
+- Set `allowOverLength: true` on a request to skip the paper-length limit for that request only. The web page exposes this as **Allow over-length print**.
 - `printId` is optional, trimmed, case-sensitive, and limited to 128 characters.
 - `logo` is optional, limited to one Base64-encoded image, 8 MB after Base64 decoding, and 8,192 pixels on either source dimension.
 - The complete JSON request body is limited to 12 MB.
@@ -219,6 +222,7 @@ Settings are under `Bridge` in `src/Ncr7198.PiBridge/appsettings.json` and can b
 | `Bridge__DevelopmentOutputDirectory` | `printed-jobs` | Output directory for file-backed development prints |
 | `Bridge__MaxOutstandingJobs` | `3` | Active plus waiting requests |
 | `Bridge__PrintIdLifetimeHours` | `24` | In-memory duplicate window |
+| `Bridge__MaxPaperLengthInchesPerCopy` | `8` | Estimated paper limit for each copy; `0` disables the limit |
 
 `GET /api/health` and its compatibility alias `GET /health` return the selected transport mode, whether that transport is available, and whether a real printer device is available.
 

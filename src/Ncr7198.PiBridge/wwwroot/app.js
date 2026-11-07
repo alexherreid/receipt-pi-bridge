@@ -128,7 +128,8 @@
       cut: cut.checked,
       copies: Number(copies.value),
       logo: state.logoData,
-      logoPosition: $('logo-position').value
+      logoPosition: $('logo-position').value,
+      allowOverLength: $('allow-over-length').checked
     };
   }
 
@@ -263,7 +264,11 @@
         row.textContent = line;
         return row;
       }));
-      $('paper-length').textContent = `Estimated paper: ~${estimatePaperInches(lines).toFixed(2)} in`;
+      const totalInches = estimatePaperInches(lines);
+      const copyCount = Math.max(1, Number(copies.value) || 1);
+      $('paper-length').textContent = copyCount > 1
+        ? `Estimated paper: ~${(totalInches / copyCount).toFixed(2)} in per copy (~${totalInches.toFixed(2)} in total)`
+        : `Estimated paper: ~${totalInches.toFixed(2)} in`;
       $('preview-card').classList.remove('hidden');
       $('preview-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });

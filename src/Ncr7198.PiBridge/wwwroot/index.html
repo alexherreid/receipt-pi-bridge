@@ -57,9 +57,10 @@ TOTAL                                 $12.00</textarea>
         <div class="checks">
           <label><input id="compressed" type="checkbox"> Compressed text output <span>(56 characters wide)</span></label>
           <label><input id="cut" type="checkbox" checked> Cut at end of print</label>
+          <label><input id="allow-over-length" type="checkbox"> Allow over-length print <span>(skip the per-copy paper limit)</span></label>
         </div>
         <p id="cut-note" class="help hidden">Cut is required when printing multiple copies.</p>
-        <p class="help">Maximum estimated paper use is 8 inches, including feeds, logos, cuts, and copies.</p>
+        <p class="help">Maximum estimated paper use is 8 inches per copy, including feeds, logos, and the cut. Check "Allow over-length print" to print a longer receipt anyway.</p>
       </section>
 
       <div id="message" class="message hidden" role="status"></div>

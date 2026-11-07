@@ -8,4 +8,5 @@ public sealed class BridgeOptions
     public string DevelopmentOutputDirectory { get; set; } = "printed-jobs";
     public int MaxOutstandingJobs { get; set; } = 3;
     public int PrintIdLifetimeHours { get; set; } = 24;
+    public double MaxPaperLengthInchesPerCopy { get; set; } = ReceiptRenderer.DefaultMaximumPaperLengthInchesPerCopy;
 }
